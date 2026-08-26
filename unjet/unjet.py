@@ -1,8 +1,24 @@
 from pathlib import Path
+import struct
+import zlib
 
-from .constants import JET_FILE_EXTENSIONS, CURSOR_FILE
+from .constants import JET_FILE_EXTENSIONS, JET_V1_HEADER_FORMAT, CURSOR_FILE
 from .helpers import natural_keys
 from .extractor import extract_jet_file
+
+
+def guess_version_jet(data: bytes) -> int:
+    if len(data) >= 2:
+        try:
+            zlib.decompressobj().decompress(data, 1)
+            return 0
+        except zlib.error:
+            try:
+                struct.unpack_from(JET_V1_HEADER_FORMAT, data)
+                return 1
+            except struct.error:
+                pass
+    raise ValueError("unknown jet version")
 
 
 def iter_jet_files(inp: Path):
@@ -26,7 +42,6 @@ def unjet(
         out = inp.with_name(f"{inp.stem}_unjet")
     elif not isinstance(out, Path):
         out = Path(out)
-
     out.mkdir(parents=True, exist_ok=True)
 
     cursor_path = out / CURSOR_FILE
@@ -34,7 +49,21 @@ def unjet(
         cursor_path.unlink(missing_ok=True)
 
     if inp.is_file() and inp.suffix.lower() in JET_FILE_EXTENSIONS:
-        extract_jet_file(inp, out, False)
+        data = inp.read_bytes()
+        version = guess_version_jet(data)
+        extract_jet_file(data, out, version)
     elif inp.is_dir():
-        for file in iter_jet_files(inp):
-            extract_jet_file(file, out, True)
+        version = None
+        for file_inp in iter_jet_files(inp):
+            data = file_inp.read_bytes()
+
+            if version is None:
+                version = guess_version_jet(data)
+
+            if version == 1:
+                file_out = out / file_inp.stem
+                file_out.mkdir(parents=True, exist_ok=True)
+            else:
+                file_out = out
+            
+            extract_jet_file(data, file_out, version)

@@ -19,31 +19,6 @@ def natural_keys(value: str | Path) -> list[str | int]:
     ]
 
 
-def is_zlib_stream(data: bytes) -> bool:
-    if len(data) < 2:
-        return False
-    
-    cmf = data[0]
-    flg = data[1]
-    
-    cm = cmf & 0x0F
-    if cm != 8:
-        return False
-    
-    cinfo = (cmf >> 4) & 0x0F
-    if cinfo > 7:
-        return False
-    
-    if ((cmf << 8) | flg) % 31 != 0:
-        return False
-    
-    fdict = (flg >> 5) & 0x01
-    if fdict and len(data) < 6:
-        return False
-    
-    return True
-
-
 def check_encoding(
     data: bytes,
     sample_size: int | None = 512,

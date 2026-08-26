@@ -4,7 +4,6 @@ import zlib
 import struct
 from functools import partial
 
-from .helpers import is_zlib_stream
 from .models import SegmentHeader, Segment
 from .parsers import *
 from .constants import CURSOR_FILE
@@ -36,17 +35,11 @@ PARSER_FUNCS_OLDJET = {
 }
 
 
-def extract_jet_file(inp: Path, out: Path, inp_dir: bool) -> None:
-    logger.info(f"Processing file: {inp}")
-
-    data = inp.read_bytes()
+def extract_jet_file(data: bytes, out: Path, version: int) -> None:
+    # logger.info(f"Processing file: {inp}")
  
-    if is_zlib_stream(data):
-        return extract_old_jet_file(inp, out, inp_dir)
-    
-    if inp_dir:
-        out = out / inp.stem
-    out.mkdir(parents=True, exist_ok=True)
+    if version == 0:
+        return extract_old_jet_file(data, out)
 
     for idx, segment in enumerate(_iter_segments(data), start=1):
         logger.debug(f"Segment {idx:03d}:")
@@ -102,9 +95,7 @@ def _iter_segments(data: bytes):
         pos = data_end
 
 
-def extract_old_jet_file(inp: Path, out: Path, inp_dir: bool) -> None:
-    out.mkdir(parents=True, exist_ok=True)
-
+def extract_old_jet_file(data: bytes, out: Path) -> None:
     tmp_file = out / f"temporary.bin"
 
     cursor_path = out / CURSOR_FILE
@@ -113,7 +104,7 @@ def extract_old_jet_file(inp: Path, out: Path, inp_dir: bool) -> None:
     else:
         counter, remain = 0, 0
 
-    data = zlib.decompressobj().decompress(inp.read_bytes())
+    data = zlib.decompressobj().decompress(data)
 
     offset = 0
     while offset < len(data):
