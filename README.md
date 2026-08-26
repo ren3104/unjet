@@ -4,7 +4,7 @@ CLI tool for unpacking .jet and .pak data archives used in VisualShower game eng
 Python 3.10+
 
 ```bash
-pip install filetype, Pillow
+pip install filetype Pillow
 ```
 
 ```bash
