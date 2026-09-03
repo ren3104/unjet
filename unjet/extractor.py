@@ -5,7 +5,7 @@ import struct
 from functools import partial
 
 from .models import JetHeader, JetInfo
-from .parsers import *
+from .parsers import PARSERS
 from .constants import CURSOR_FILE, JET_V1_HEADER_FORMAT
 
 
@@ -16,29 +16,12 @@ ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("{levelname:<8s} | {message}", style="{"))
 logger.addHandler(ch)
 
-PARSER_FUNCS = {
-    b"RW": parse_rw_file,
-    b"SN": parse_sn_file,
-    b"I2": parse_i2_file,
-    b"S2": parse_s2_file,
-    b"AT": parse_at_file,
-    b"IM": parse_im_file,
-    b"SP": parse_sp_file,
-    b"AN": parse_an_file
-}
-PARSER_FUNCS_OLDJET = {
-    b"IM": parse_im_file,
-    b"SP": partial(parse_sp_file, old_version=True),
-    b"AN": partial(parse_an_file, old_version=True),
-    b"M2": parse_m2_file
-}
-
 
 def extract_jet_file(data: bytes, out: Path, version: int) -> None:
     # logger.info(f"Processing file: {inp}")
  
     if version == 0:
-        return extract_old_jet_file(data, out)
+        return extract_old_jet_file(data, out, version)
 
     for idx, segment in enumerate(_iter_segments(data), start=1):
         logger.debug(f"Segment {idx:03d}:")
@@ -68,8 +51,8 @@ def extract_jet_file(data: bytes, out: Path, version: int) -> None:
                     continue
         
         segment_type = segment_data[:2]
-        if segment_type in PARSER_FUNCS:
-            file_out = PARSER_FUNCS[segment_type](segment_data, segment_out)
+        if segment_type in PARSERS:
+            file_out = PARSERS[segment_type].parse_resource(segment_data, segment_out, version)
             segment_out.unlink(missing_ok=True)
             if isinstance(file_out, tuple):
                 for p in file_out:
@@ -95,7 +78,7 @@ def _iter_segments(data: bytes):
         pos = data_end
 
 
-def extract_old_jet_file(data: bytes, out: Path) -> None:
+def extract_old_jet_file(data: bytes, out: Path, version: int) -> None:
     tmp_file = out / f"temporary.bin"
 
     cursor_path = out / CURSOR_FILE
@@ -108,11 +91,13 @@ def extract_old_jet_file(data: bytes, out: Path) -> None:
 
     offset = 0
     while offset < len(data):
+        segment_type = data[offset:offset + 2]
         segment_out = out / f"{counter}.bin"
 
         if remain == 0:
             try:
-                expected_size = _old_segment_size(data, offset)
+                expected_size = PARSERS[segment_type].calc_data_size(
+                    memoryview(data)[offset:])
             except RuntimeError:
                 segment_out = segment_out.with_suffix(".bin")
                 segment_out.write_bytes(data)
@@ -139,8 +124,8 @@ def extract_old_jet_file(data: bytes, out: Path) -> None:
         offset += expected_size
 
         segment_type = segment_data[:2]
-        if segment_type in PARSER_FUNCS_OLDJET:
-            file_out = PARSER_FUNCS_OLDJET[segment_type](segment_data, segment_out)
+        if segment_type in PARSERS:
+            file_out = PARSERS[segment_type].parse_resource(segment_data, segment_out, version)
             if isinstance(file_out, tuple):
                 for p in file_out:
                     logger.info(f"-> {p.name}")
@@ -153,30 +138,3 @@ def extract_old_jet_file(data: bytes, out: Path) -> None:
             logger.info(f"-> {segment_out.name}")
     
     cursor_path.write_text(f"{counter},{remain}")
-
-
-def _old_segment_size(data: bytes, offset: int) -> int:
-    segment_type = data[offset:offset + 2]
-    if segment_type == b"IM":
-        _, flag, width, height = struct.unpack("<2sB2H", data[offset:offset + 7])
-        size = 7
-        if flag == 0:
-            size += width * height * 2
-        elif flag == 2:
-            size += width * height * 3
-        elif flag == 6:
-            size += width * height
-        else:
-            raise RuntimeError(f"Unsupported image flag: {flag}")
-        return size
-    elif segment_type == b"SP":
-        block_count = struct.unpack("<H", data[offset + 2:offset + 4])[0]
-        return block_count * 6 + 12
-    elif segment_type == b"AN":
-        block_count = struct.unpack("<H", data[offset + 2:offset + 4])[0]
-        return block_count * 6 + 4
-    elif segment_type == b"M2":
-        _, file_size = struct.unpack("<iI", data[offset + 2:offset + 10])
-        return file_size + 10
-    else:
-        raise RuntimeError(f"Unsupported data type: {segment_type!r}")

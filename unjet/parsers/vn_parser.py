@@ -1,9 +1,15 @@
 from pathlib import Path
 
 
-def parse_vn_file(data: bytes, outp: Path) -> Path:
-    target_path = outp.with_name(f"{outp.stem}.bin")
+class ParserVN:
+    TYPE_CODE = "VN"
 
-    target_path.write_bytes(data)
+    @classmethod
+    def parse_resource(cls, data: bytes, outp: Path, version: int) -> Path:
+        if version not in (0, 1):
+            raise ValueError(f"unsupported data version: {version}")
 
-    return target_path
+        target_path = outp.with_name(f"{outp.stem}.bin")
+        target_path.write_bytes(data)
+
+        return target_path

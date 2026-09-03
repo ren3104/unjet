@@ -3,15 +3,23 @@ from pathlib import Path
 from ..helpers import guess_file_ext
 
 
-def parse_sn_file(data: bytes, outp: Path) -> Path:
-    if len(data) < 10:
-        raise ValueError(f"Data too small: {len(data)} bytes")
-    
-    data = data[10:] # skip jet header
+class ParserSN:
+    TYPE_CODE = "SN"
 
-    ext = guess_file_ext(data)
-    
-    target_path = outp.with_name(f"{outp.stem}.{ext}")
-    target_path.write_bytes(data)
+    HEADER_SIZE = 10
 
-    return target_path
+    @classmethod
+    def parse_resource(cls, data: bytes, outp: Path, version: int) -> Path:
+        if version not in (0, 1):
+            raise ValueError(f"unsupported data version: {version}")
+
+        if len(data) < cls.HEADER_SIZE:
+            raise ValueError(f"data too small: {len(data)} bytes")
+
+        payload = data[cls.HEADER_SIZE:]
+        ext = guess_file_ext(payload)
+
+        target_path = outp.with_name(f"{outp.stem}.{ext}")
+        target_path.write_bytes(payload)
+
+        return target_path

@@ -1,68 +1,92 @@
 import struct
 from pathlib import Path
+from typing import NamedTuple
+
 from PIL import Image
 
 
-def parse_im_file(data: bytes, outp: Path) -> Path | None:
-    if len(data) < 7:
-        raise ValueError(f"Data too small: {len(data)} bytes")
+class ImHeader(NamedTuple):
+    flag: int
+    width: int
+    height: int
 
-    _, flag, width, height = struct.unpack_from("<2sB2H", data)
 
-    if width == 0 or height == 0:
-        return
+class ParserIM:
+    TYPE_CODE = "IM"
 
-    offset = 7
-    pixel_count = width * height
+    HEADER_FORMAT = "<2sB2H"
+    HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
 
-    if flag == 6: # 8-bit grayscale
-        expected_size = offset + pixel_count
-        if len(data) < expected_size:
-            raise ValueError("Unexpected end of grayscale data")
-        
-        img = Image.frombytes("L", (width, height), data[offset:expected_size])
+    # Pixel encodings.
+    FLAG_RGB565 = 0  # RGB565 -> RGB888
+    FLAG_RGB565_ALPHA = 2  # RGB565 + A -> RGBA8888
+    FLAG_GRAYSCALE = 6  # 8-bit gray -> L
 
-    elif flag == 0: # RGB565 -> RGB888
-        expected_size = offset + (pixel_count * 2)
-        if len(data) < expected_size:
-            raise ValueError("Unexpected end of RGB565 data")
+    _BYTES_PER_PIXEL = {
+        FLAG_RGB565: 2,
+        FLAG_RGB565_ALPHA: 3,
+        FLAG_GRAYSCALE: 1,
+    }
 
-        img = Image.frombytes(
-            "RGB", 
-            (width, height), 
-            data[offset:expected_size], 
-            "raw", 
-            "BGR;16"
-        )
+    @classmethod
+    def parse_header(cls, data: bytes) -> ImHeader:
+        if len(data) < cls.HEADER_SIZE:
+            raise ValueError(f"data too small: {len(data)} bytes")
 
-    elif flag == 2: # RGB565 + Alpha -> RGBA8888
-        rgb_data_size = pixel_count * 2
-        alpha_offset = offset + rgb_data_size
-        expected_size = alpha_offset + pixel_count
+        _, flag, width, height = struct.unpack_from(cls.HEADER_FORMAT, data)
+        return ImHeader(flag, width, height)
 
-        if len(data) < expected_size:
-            raise ValueError("Unexpected end of RGBA data")
+    @classmethod
+    def calc_data_size(cls, data: bytes) -> int:
+        header = cls.parse_header(data)
 
-        img = Image.frombytes(
-            "RGB", 
-            (width, height), 
-            data[offset:alpha_offset], 
-            "raw", 
-            "BGR;16"
-        )
-        
-        alpha_channel = Image.frombytes(
-            "L", 
-            (width, height), 
-            data[alpha_offset:expected_size]
-        )
-        
-        img.putalpha(alpha_channel)
+        try:
+            bytes_per_pixel = cls._BYTES_PER_PIXEL[header.flag]
+        except KeyError:
+            raise ValueError(f"unsupported image flag: {header.flag}")
 
-    else:
-        raise RuntimeError(f"Unsupported image mode ({flag})")
+        return cls.HEADER_SIZE + header.width * header.height * bytes_per_pixel
 
-    target_path = outp.with_name(f"{outp.stem}.png")
-    img.save(target_path)
+    @classmethod
+    def parse_resource(cls, data: bytes, outp: Path, version: int) -> Path | None:
+        if version not in (0, 1):
+            raise ValueError(f"unsupported data version: {version}")
 
-    return target_path
+        view = memoryview(data)
+        header = cls.parse_header(view)
+
+        if header.width == 0 or header.height == 0:
+            return None
+
+        size = (header.width, header.height)
+        pixel_count = header.width * header.height
+        start = cls.HEADER_SIZE
+
+        if header.flag == cls.FLAG_GRAYSCALE:
+            end = start + pixel_count
+            if len(view) < end:
+                raise ValueError("unexpected end of grayscale data")
+
+            img = Image.frombytes("L", size, view[start:end])
+        elif header.flag == cls.FLAG_RGB565:
+            end = start + pixel_count * 2
+            if len(view) < end:
+                raise ValueError("unexpected end of RGB565 data")
+
+            img = Image.frombytes("RGB", size, view[start:end], "raw", "BGR;16")
+        elif header.flag == cls.FLAG_RGB565_ALPHA:
+            alpha_start = start + pixel_count * 2
+            end = alpha_start + pixel_count
+            if len(view) < end:
+                raise ValueError("unexpected end of RGBA data")
+
+            img = Image.frombytes(
+                "RGB", size, view[start:alpha_start], "raw", "BGR;16")
+            img.putalpha(Image.frombytes("L", size, view[alpha_start:end]))
+        else:
+            raise ValueError(f"unsupported image mode ({header.flag})")
+
+        target_path = outp.with_name(f"{outp.stem}.png")
+        img.save(target_path)
+
+        return target_path
