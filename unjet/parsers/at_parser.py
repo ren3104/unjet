@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 from PIL import Image
 
-from ..helpers import base38_encode
+from ..helpers import base38_decode
 
 
 def parse_at_file(data: bytes, outp: Path) -> Path | tuple[Path, Path]:
@@ -22,7 +22,7 @@ def parse_at_file(data: bytes, outp: Path) -> Path | tuple[Path, Path]:
         block_header += (data[offset:offset+block_header[2]],)
         offset += block_header[2]
 
-        blocks[base38_encode(block_header[0])] = [ # S2 file
+        blocks[base38_decode(block_header[0])] = [ # S2 file
             int(block_header[1] * 1000), # frame duration
             block_header[2], # name len
             block_header[3].decode("ascii"), # name

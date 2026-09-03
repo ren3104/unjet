@@ -2,7 +2,7 @@ import struct
 from pathlib import Path
 import json
 
-from ..helpers import base38_encode
+from ..helpers import base38_decode
 
 
 def parse_s2_file(data: bytes, outp: Path) -> Path:
@@ -17,7 +17,7 @@ def parse_s2_file(data: bytes, outp: Path) -> Path:
     blocks = {}
     for _ in range(block_count):
         i2_id, x, y = struct.unpack("<Q2i", data[offset:offset+16])
-        i2_id = base38_encode(i2_id)
+        i2_id = base38_decode(i2_id)
         offset += 16
         blocks[i2_id] = (x, y)
 

@@ -7,7 +7,7 @@ import codecs
 from .constants import B38_ALPHABET
 
 
-def base38_encode(v: int) -> str:
+def base38_decode(v: int) -> str:
     if v == 0:
         return "0"
     out = []
@@ -15,6 +15,28 @@ def base38_encode(v: int) -> str:
         v, r = divmod(v, 38)
         out.append(B38_ALPHABET[r])
     return "".join(reversed(out)) 
+
+
+def base38_encode(name: str) -> int:
+    if len(name) > 12:
+        raise ValueError("maximum 12 characters allowed")
+    v = 0
+    for ch in name:
+        o = ord(ch)
+        if   0x30 <= o <= 0x39:
+            d = o - 0x30  # 0-9
+        elif 0x61 <= o <= 0x7a:
+            d = o - 0x57  # a-z -> 10..35
+        elif 0x41 <= o <= 0x5a:
+            d = o - 0x37  # A-Z -> 10..35
+        elif ch in ".[":
+            d = 36
+        elif ch == "_":
+            d = 37
+        else:
+            raise ValueError(f"{ch!r} is not in the base38 alphabet")
+        v = v * 38 + d
+    return v
 
 
 _NUM_RE = re.compile(r"(\d+)")

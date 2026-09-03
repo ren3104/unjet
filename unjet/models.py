@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import struct
 
 from .constants import JET_V1_HEADER_FORMAT
-from .helpers import base38_encode
+from .helpers import base38_decode
 
 
 @dataclass
@@ -18,7 +18,7 @@ class JetHeader:
     def from_bytes(cls, raw: bytes) -> "JetHeader":
         total_sz, part_sz, data_end, rid, part_idx, tcode = struct.unpack(
             JET_V1_HEADER_FORMAT, raw)
-        rid = base38_encode(rid)
+        rid = base38_decode(rid)
         return cls(total_sz, part_sz, data_end, rid, part_idx, tcode)
 
 
