@@ -11,7 +11,7 @@ def parse_sn_file(data: bytes, outp: Path) -> Path:
 
     ext = guess_file_ext(data)
     
-    target_path = outp.with_name(f"SN_{outp.stem}.{ext}")
+    target_path = outp.with_name(f"{outp.stem}.{ext}")
     target_path.write_bytes(data)
 
     return target_path

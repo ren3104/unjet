@@ -3,7 +3,7 @@ import struct
 import zlib
 
 from .constants import JET_FILE_EXTENSIONS, JET_V1_HEADER_FORMAT, CURSOR_FILE
-from .models import SegmentHeader
+from .models import JetHeader
 from .helpers import natural_keys
 from .extractor import extract_jet_file
 
@@ -19,13 +19,13 @@ def guess_version_jet(data: bytes) -> int:
             pass
 
         try:
-            header = SegmentHeader(*struct.unpack_from(JET_V1_HEADER_FORMAT, data))
-            segment_end = struct.calcsize(JET_V1_HEADER_FORMAT) + header.rel_pos_end
+            header = JetHeader(*struct.unpack_from(JET_V1_HEADER_FORMAT, data))
+            segment_end = struct.calcsize(JET_V1_HEADER_FORMAT) + header.relative_data_end
             if (
-                header.segment_no == 0
-                and header.rel_pos_end >= 0
-                and header.full_size >= header.segment_size
-                and segment_end <= header.segment_size <= data_len
+                header.part_index == 0
+                and header.relative_data_end >= 0
+                and header.total_size >= header.part_size
+                and segment_end <= header.part_size <= data_len
             ):
                 return 1
         except struct.error:

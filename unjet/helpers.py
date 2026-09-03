@@ -4,6 +4,18 @@ from pathlib import Path
 import re
 import codecs
 
+from .constants import B38_ALPHABET
+
+
+def base38_encode(v: int) -> str:
+    if v == 0:
+        return "0"
+    out = []
+    while v:
+        v, r = divmod(v, 38)
+        out.append(B38_ALPHABET[r])
+    return "".join(reversed(out)) 
+
 
 _NUM_RE = re.compile(r"(\d+)")
 

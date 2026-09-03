@@ -3,6 +3,8 @@ from pathlib import Path
 import json
 from PIL import Image
 
+from ..helpers import base38_encode
+
 
 def parse_at_file(data: bytes, outp: Path) -> Path | tuple[Path, Path]:
     if len(data) < 47:
@@ -15,19 +17,18 @@ def parse_at_file(data: bytes, outp: Path) -> Path | tuple[Path, Path]:
 
     blocks = {}
     for _ in range(block_count):
-        block_header = struct.unpack("<2IfH", data[offset:offset+14])
+        block_header = struct.unpack("<QfH", data[offset:offset+14])
         offset += 14
-        block_header += (data[offset:offset+block_header[3]],)
-        offset += block_header[3]
+        block_header += (data[offset:offset+block_header[2]],)
+        offset += block_header[2]
 
-        blocks[block_header[0]] = [ # S2 file
-            block_header[1], # ?
-            int(block_header[2] * 1000), # frame duration
-            block_header[3], # name len
-            block_header[4].decode("ascii"), # name
+        blocks[base38_encode(block_header[0])] = [ # S2 file
+            int(block_header[1] * 1000), # frame duration
+            block_header[2], # name len
+            block_header[3].decode("ascii"), # name
         ]
     
-    json_path = outp.with_name(f"AT_{outp.stem}.json")
+    json_path = outp.with_name(f"{outp.stem}.json")
     json_path.write_text(json.dumps(blocks))
 
     if len(blocks) <= 1:
@@ -37,13 +38,13 @@ def parse_at_file(data: bytes, outp: Path) -> Path | tuple[Path, Path]:
 
     def get_img(i2_id: str) -> Image.Image:
         if i2_id not in img_cache:
-            img = Image.open(outp.parent / f"I2_{i2_id}.png")
+            img = Image.open(outp.parent / f"{i2_id}.png")
             img_cache[i2_id] = img
         return img_cache[i2_id]
 
     all_frames_data: list[tuple[list, int]] = []
     for s2_id, block in blocks.items():
-        s2_data: dict = json.loads((outp.parent / f"S2_{s2_id}.json").read_bytes())
+        s2_data: dict = json.loads((outp.parent / f"{s2_id}.json").read_bytes())
         layers = [(get_img(i2_id), coords[0], coords[1]) for i2_id, coords in s2_data.items()]
         all_frames_data.append((layers, block[1])) # (layers, duration_ms)
 
@@ -74,7 +75,7 @@ def parse_at_file(data: bytes, outp: Path) -> Path | tuple[Path, Path]:
         frames.append(frame)
         durations.append(duration)
 
-    webp_path = outp.with_name(f"AT_{outp.stem}.webp")
+    webp_path = outp.with_name(f"{outp.stem}.webp")
     frames[0].save(
         webp_path,
         format="WEBP",

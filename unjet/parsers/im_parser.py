@@ -62,7 +62,7 @@ def parse_im_file(data: bytes, outp: Path) -> Path | None:
     else:
         raise RuntimeError(f"Unsupported image mode ({flag})")
 
-    target_path = outp.with_name(f"IM_{outp.stem}.png")
+    target_path = outp.with_name(f"{outp.stem}.png")
     img.save(target_path)
 
     return target_path

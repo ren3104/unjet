@@ -13,7 +13,7 @@ def parse_rw_file(data: bytes, outp: Path) -> Path:
 
     ext = guess_file_ext(data)
     
-    target_path = outp.with_name(f"RW_{outp.stem}.{ext}")
+    target_path = outp.with_name(f"{outp.stem}.{ext}")
     target_path.write_bytes(data)
 
     # Convert spine .skel to .json

@@ -31,7 +31,7 @@ def parse_sp_file(data: bytes, outp: Path, old_version: bool = False) -> Path:
         offset += 4
         records["unknown"].append(value)
     
-    target_path = outp.with_name(f"SP_{outp.stem}.json")
+    target_path = outp.with_name(f"{outp.stem}.json")
     target_path.write_text(json.dumps(records))
     
     return target_path

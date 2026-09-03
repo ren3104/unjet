@@ -36,7 +36,7 @@ def parse_i2_file(data: bytes, outp: Path) -> Path:
         canvas.paste(block.crop((0, 0, w, h)), (x, y))
         offset += size
     
-    target_path = outp.with_name(f"I2_{outp.stem}.png")
+    target_path = outp.with_name(f"{outp.stem}.png")
     canvas.save(target_path)
 
     return target_path

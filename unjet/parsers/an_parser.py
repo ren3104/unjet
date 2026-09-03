@@ -18,14 +18,14 @@ def parse_an_file(
     blocks = {}
     for _ in range(block_count):
         if old_version:
-            duration, _, sp_file = struct.unpack("<3H", data[offset:offset+6])
+            duration, _, sp_id = struct.unpack("<3H", data[offset:offset+6])
             offset += 6
         else:
-            duration, sp_file, _ = struct.unpack("<3I", data[offset:offset+12])
+            duration, sp_id = struct.unpack("<IQ", data[offset:offset+12])
             offset += 12
         blocks[sp_file] = duration
     
-    json_path = outp.with_name(f"AN_{outp.stem}.json")
+    json_path = outp.with_name(f"{outp.stem}.json")
     json_path.write_text(json.dumps(blocks))
 
     if len(blocks) <= 1:
@@ -35,13 +35,13 @@ def parse_an_file(
 
     def get_img(im_id: str) -> Image.Image:
         if im_id not in img_cache:
-            img = Image.open(outp.parent / f"IM_{im_id}.png")
+            img = Image.open(outp.parent / f"{im_id}.png")
             img_cache[im_id] = img
         return img_cache[im_id]
 
     all_frames_data: list[tuple[list, int]] = []
-    for sp_file, duration in blocks.items():
-        sp_data: dict = json.loads((outp.parent / f"SP_{sp_file}.json").read_bytes())
+    for sp_id, duration in blocks.items():
+        sp_data: dict = json.loads((outp.parent / f"{sp_id}.json").read_bytes())
         layers = [
             (get_img(im_id), coords[0], coords[1])
             for im_id, coords in sp_data.items()
@@ -76,7 +76,7 @@ def parse_an_file(
         frames.append(frame)
         durations.append(duration)
 
-    webp_path = outp.with_name(f"AN_{outp.stem}.webp")
+    webp_path = outp.with_name(f"{outp.stem}.webp")
     frames[0].save(
         webp_path,
         format="WEBP",

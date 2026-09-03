@@ -4,9 +4,9 @@ import zlib
 import struct
 from functools import partial
 
-from .models import SegmentHeader, Segment
+from .models import JetHeader, JetInfo
 from .parsers import *
-from .constants import CURSOR_FILE
+from .constants import CURSOR_FILE, JET_V1_HEADER_FORMAT
 
 
 logger = logging.getLogger("unjet")
@@ -16,7 +16,6 @@ ch = logging.StreamHandler()
 ch.setFormatter(logging.Formatter("{levelname:<8s} | {message}", style="{"))
 logger.addHandler(ch)
 
-SEGMENT_HEADER_SIZE = 24
 PARSER_FUNCS = {
     b"RW": parse_rw_file,
     b"SN": parse_sn_file,
@@ -45,21 +44,21 @@ def extract_jet_file(data: bytes, out: Path, version: int) -> None:
         logger.debug(f"Segment {idx:03d}:")
         logger.debug(segment)
 
-        segment_out = out / f"{segment.header.file_id}.bin"
+        segment_out = out / f"{segment.header.resource_id}.bin"
         segment_data = data[segment.data_start:segment.data_end]
         try:
             segment_data = zlib.decompressobj().decompress(segment_data)
         except zlib.error:
             pass
 
-        if segment.header.full_size != segment.header.segment_size:
-            if segment.header.segment_no == 0:
+        if segment.header.total_size != segment.header.part_size:
+            if segment.header.part_index == 0:
                 segment_out.write_bytes(segment_data)
                 continue
             else:
                 is_final = any(
-                    (segment.header.segment_no * (10 ** k) + segment.header.segment_size) == segment.header.full_size
-                    for k in range(len(str(segment.header.full_size)) - 1, 0, -1)
+                    (segment.header.part_index * (10 ** k) + segment.header.part_size) == segment.header.total_size
+                    for k in range(len(str(segment.header.total_size)) - 1, 0, -1)
                 )
                 if is_final:
                     segment_data = segment_out.read_bytes() + segment_data
@@ -86,11 +85,12 @@ def extract_jet_file(data: bytes, out: Path, version: int) -> None:
 
 def _iter_segments(data: bytes):
     pos = 0
-    while pos + SEGMENT_HEADER_SIZE <= len(data):
-        header = SegmentHeader.from_bytes(data[pos:pos+SEGMENT_HEADER_SIZE])
-        data_start = pos + SEGMENT_HEADER_SIZE
-        data_end = data_start + header.rel_pos_end
-        segment = Segment(pos, data_start, data_end, header)
+    header_size = struct.calcsize(JET_V1_HEADER_FORMAT)
+    while pos + header_size <= len(data):
+        header = JetHeader.from_bytes(data[pos:pos+header_size])
+        data_start = pos + header_size
+        data_end = data_start + header.relative_data_end
+        segment = JetInfo(pos, data_start, data_end, header)
         yield segment
         pos = data_end
 

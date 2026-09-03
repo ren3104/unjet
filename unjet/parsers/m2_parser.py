@@ -20,7 +20,7 @@ def parse_m2_file(data: bytes, outp: Path) -> Path | None:
         ext = "bin"
         # raise RuntimeError(f"Unsupported M2 file type: {file_type}")
     
-    target_path = outp.with_name(f"M2_{outp.stem}.{ext}")
+    target_path = outp.with_name(f"{outp.stem}.{ext}")
     target_path.write_bytes(data)
 
     return target_path
